@@ -31,6 +31,7 @@ procedure DebugMsgF(FileName : WideString; Txt : WideString);
 procedure DebugMsgFT(FileName : WideString; Txt : WideString);
 {$ENDIF}
 
+function  WinInetErrorMsg(Err: DWORD): string;
 function  DownloadFileToStringList(URL : String; fStream : TStringList; var Status : String; var ErrorCode: Integer; TimeOut : DWord{$IFDEF LOCALTRACE}; ThreadID : Integer{$ENDIF}) : Boolean; overload;
 function  DownloadFileToStream(URL : String; fStream : TMemoryStream; var Status : String; var ErrorCode: Integer; TimeOut : DWord{$IFDEF LOCALTRACE}; ThreadID : Integer{$ENDIF}) : Boolean; overload;
 function  DownloadImageToFile(URL : String; ImageFilePath, ImageFileName : WideString; var Status : String; var ErrorCode: Integer; TimeOut : DWord{$IFDEF LOCALTRACE}; ThreadID : Integer{$ENDIF}) : Boolean; overload;
@@ -46,6 +47,7 @@ function  ConvertCharsToSpaces(S : WideString) : WideString;
 procedure FileExtIntoStringList(fPath,fExt : WideString; fList : TTNTStrings; Recursive : Boolean);
 function  UTF8StringToWideString(Const S : UTF8String) : WideString;
 function  StripNull(S : String) : String;
+function  StripInvalidChars(S : WideString) : WideString;
 
 procedure CalcGabestHash(const Stream: TStream; var Hash1,Hash2 : Int64); overload;
 procedure CalcGabestHash(const FileName: WideString; var Hash1,Hash2 : Int64); overload;
@@ -149,6 +151,28 @@ begin
 end;
 {$ENDIF}
 
+function WinInetErrorMsg(Err: DWORD): string;
+var
+  ErrMsg: array of Char;
+  ErrLen: DWORD;
+begin
+  if Err = ERROR_INTERNET_EXTENDED_ERROR then
+  begin
+    ErrLen := 0;
+    InternetGetLastResponseInfo(Err, nil, ErrLen);
+    if GetLastError() = ERROR_INSUFFICIENT_BUFFER then
+    begin
+      SetLength(ErrMsg, ErrLen);
+      InternetGetLastResponseInfo(Err, PChar(ErrMsg), ErrLen);
+      SetString(Result, PChar(ErrMsg), ErrLen);
+    end else begin
+      Result := 'Unknown WinInet error';
+    end;
+  end else
+    Result := SysErrorMessage(Err);
+end;
+
+
 function  DownloadFileToStringList(URL : String; fStream : TStringList; var Status : String; var ErrorCode: Integer; TimeOut : DWord{$IFDEF LOCALTRACE}; ThreadID : Integer{$ENDIF}) : Boolean;
 var
   MemStream : TMemoryStream;
@@ -185,9 +209,10 @@ var
   Tmp        : DWord;
   iAttemptsLeft : Integer;
   AttemptAgain  : Boolean;
-  RetryAfter: String;
-  qiResult   : Boolean;
-  irfResult  : Boolean;
+  RetryAfter    : String;
+  qiResult      : Boolean;
+  irfResult     : Boolean;
+  S             : String;
 begin
   {$IFDEF LOCALTRACE}DebugMsgFT(scrapeLog+IntToStr(ThreadID)+scrapeLogExt,'DownloadFileToStream (before)');{$ENDIF}
   Result := False;
@@ -219,10 +244,19 @@ begin
 
         Try
           UrlHandle := InternetOpenUrl(NetHandle,PChar(URL),nil,0,INTERNET_FLAG_RELOAD,0);
+          If UrlHandle = nil then
+          Begin
+            ErrorCode := GetLastError;
+            If ErrorCode = ERROR_INTERNET_CLIENT_AUTH_CERT_NEEDED then
+            Begin
+              ErrorCode := 0;
+              UrlHandle := InternetOpenUrl(NetHandle,PChar(URL),nil,0,INTERNET_FLAG_RELOAD,0);
+            End;
+          End;  
         Except
           {$IFDEF LOCALTRACE}DebugMsgFT(scrapeLog+IntToStr(ThreadID)+scrapeLogExt,'DownloadFileToStream: Exception on InternetOpenUrl');{$ENDIF}
         End;
-        If Assigned(UrlHandle) then
+        If (Assigned(UrlHandle)) and (ErrorCode = 0) then
         Begin
           {$IFDEF LOCALTRACE}DebugMsgFT(scrapeLog+IntToStr(ThreadID)+scrapeLogExt,'DownloadFileToStream: URLHandle assigned');{$ENDIF}
 
@@ -302,7 +336,12 @@ begin
           {$IFDEF LOCALTRACE}DebugMsgFT(scrapeLog+IntToStr(ThreadID)+scrapeLogExt,'DownloadFileToStream: Close URLHandle');{$ENDIF}
           InternetCloseHandle(UrlHandle);
         End
-        Else ErrorCode := GetLastError;
+          else
+        Begin
+          If ErrorCode = 0 then ErrorCode := GetLastError;
+          S := WinInetErrorMsg(GetLastError);
+          {$IFDEF LOCALTRACE}DebugMsgFT(scrapeLog+IntToStr(ThreadID)+scrapeLogExt,'DownloadFileToStream: Error '+IntToHex(ErrorCode,8)+', "'+S+'"');{$ENDIF}
+        End;
       //until not (AttemptAgain and (iAttemptsLeft > 0));
       {$IFDEF LOCALTRACE}DebugMsgFT(scrapeLog+IntToStr(ThreadID)+scrapeLogExt,'DownloadFileToStream: Close NetHandle');{$ENDIF}
       InternetCloseHandle(NetHandle);
@@ -523,6 +562,17 @@ end;
 function StripNull(S : String) : String;
 begin
   If CompareText(S,'null') = 0 then Result := '' else Result := S;
+end;
+
+
+function  StripInvalidChars(S : WideString) : WideString;
+const
+  StripList : Array[0..26] of Char = ('!','.','@',',','#','$','%','^','&','*','(',')','_','-','+','\','[',']','{','}',';',':','"','<','>','|','''');
+var
+  I : Integer;
+begin
+  For I := 0 to 26 do S := TNT_WideStringReplace(S,StripList[I],'',[rfReplaceAll]);
+  Result := S;
 end;
 
 

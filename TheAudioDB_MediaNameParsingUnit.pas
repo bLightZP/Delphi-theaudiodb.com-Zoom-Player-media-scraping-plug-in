@@ -16,12 +16,29 @@ uses sysutils, tntsysutils, dateutils, tntclasses, TheAudioDB_misc_utils_unit, g
 
 procedure ParseFolderNameForAlbumAndArtist(FolderName : WideString; var ArtistName, AlbumName : WideString);
 var
-  iPos : Integer;
+  iPos      : Integer;
+  posLikely : Boolean;
+  I         : Integer;
+  sLen      : Integer;
 begin
   ArtistName := '';
   AlbumName  := '';
+  sLen       := Length(FolderName);
+  posLikely  := False;
+  iPos       := 0;
 
-  iPos := Pos('-',FolderName);
+  For I := 1 to sLen do If FolderName[I] = '-' then
+  Begin
+    If (I > 1) and (I < sLen) and (posLikely = False) then
+      If (FolderName[I-1] = ' ') and (FolderName[I+1] = ' ') then
+    Begin
+      iPos      := I;
+      posLikely := True;
+    End;
+    If (iPos = 0) or (posLikely = False) then iPos := I;
+  End;
+
+  //iPos := Pos('-',FolderName);
 
   If iPos > 0 then
   Begin

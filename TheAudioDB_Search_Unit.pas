@@ -44,6 +44,8 @@ Const
   SCRAPE_RESULT_ERROR_DB_UNAUTHORIZED = -401; // Failed to scrape (OnlineDB returned status = 401 - Unauthorized)
   SCRAPE_RESULT_ERROR_DB_OTHER_ERROR = -999; // Failed to scrape (OnlineDB returned status <> 200 - OK or there was some unrecognized error)
 
+  AudioDBbaseURL   : String = 'https://www.theaudiodb.com/api/v1/json/';
+
   {$IFDEF LOCALTRACE}
   CRLF             = #13+#10;
   {$ENDIF}
@@ -326,7 +328,7 @@ begin
     tadb_strLocked              := '';
   End;
 
-  sURL := 'http://www.theaudiodb.com/api/v1/json/'+APIKey+'/track.php?h='+IntToStr(TrackID);
+  sURL := AudioDBbaseURL+APIKey+'/track.php?h='+IntToStr(TrackID);
 
   //{$IFDEF LOCALTRACE}DebugMsgFT(scrapeLog+IntToStr(ThreadID)+scrapeLogExt,'CheckAndAddToSearchLimitList');{$ENDIF}
   //CheckAndAddToSearchLimitList;
@@ -477,7 +479,7 @@ begin
   sDownloadStatus := '';
   Result := E_FAIL;
 
-  sURL := 'http://www.theaudiodb.com/api/v1/json/'+APIKey+'/search-hash.php?h1='+IntToHex(Hash1,16)+'&h2='+IntToHex(Hash2,16);
+  sURL := AudioDBbaseURL+APIKey+'/search-hash.php?h1='+IntToHex(Hash1,16)+'&h2='+IntToHex(Hash2,16);
 
   {$IFDEF LOCALTRACE}DebugMsgFT(scrapeLog+IntToStr(ThreadID)+scrapeLogExt,'CheckAndAddToSearchLimitList');{$ENDIF}
   //CheckAndAddToSearchLimitList;
@@ -648,8 +650,8 @@ begin
   //CheckAndAddToSearchLimitList;
 
   If ArtistName <> '' then
-    sURL := 'http://www.theaudiodb.com/api/v1/json/'+APIKey+'/searchalbum.php?s='+URLEncodeUTF8(ArtistName)+'&a='+URLEncodeUTF8(AlbumName) else
-    sURL := 'http://www.theaudiodb.com/api/v1/json/'+APIKey+'/searchalbum.php?a='+URLEncodeUTF8(AlbumName);
+    sURL := AudioDBbaseURL+APIKey+'/searchalbum.php?ss='+URLEncodeUTF8(StripInvalidChars(ArtistName))+'&as='+URLEncodeUTF8(StripInvalidChars(AlbumName)) else
+    sURL := AudioDBbaseURL+APIKey+'/searchalbum.php?as='+URLEncodeUTF8(StripInvalidChars(AlbumName));
   {$IFDEF LOCALTRACE}DebugMsgFT(scrapeLog+IntToStr(ThreadID)+scrapeLogExt,'Download URL "'+sURL+'"');{$ENDIF}
   sList := TStringList.Create;
 
